@@ -71,3 +71,18 @@ class stepperCalibration(QtWidgets.QMainWindow):
         else:
             if not type(event) == bool:
                 event.ignore()
+
+def runApp():
+    app = QtWidgets.QApplication(sys.argv)
+
+    #lakeshoreControl = lsc.lakeshoreWindow()
+    steppercalib = stepperCalibration(version = 'v1.2')
+    steppercalib.show()
+    # add other applications here, then drop into the next class as an arg
+
+    #manWindow = managerWindow(pulseSearch)
+    #manWindow.show()
+
+    sys.exit(app.exec_())
+
+runApp()
