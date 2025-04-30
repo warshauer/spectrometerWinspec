@@ -5,10 +5,11 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5 import uic
 import RPi.GPIO as GPIO
 import time
+from RpiMotorLib import RpiMotorLib
 
 
 class stepperCalibration(QtWidgets.QMainWindow):
-    def __init__(self, whoami = 'stepperCalibration', version = 'v1.0', switch0_GPIO = 17, switch1_GPIO = 18):
+    def __init__(self, whoami = 'stepperCalibration', version = 'v1.0', switch0_GPIO = 17, switch1_GPIO = 18, stepDir_GPIO = 22, stepSize_GPIO = 23, stepEnable_GPIO = 24):
         QtWidgets.QMainWindow.__init__(self)
         self.ui = uic.loadUi('steppercalibration.ui',self) 
         self.resize(1700, 1000)
@@ -17,13 +18,26 @@ class stepperCalibration(QtWidgets.QMainWindow):
         self.settings = QtCore.QSettings(self.me, version)
         
         self.Widgets = {}
-        self.Widgets = {'state0':self.LE_switch0state, 'state1':self.LE_switch1state}
+        self.Widgets = {'state0':self.LE_switch0state, 'state1':self.LE_switch1state, 'movesteppos':self.PB_movepos, 'movestepneg':self.PB_moveneg, 'stepsize':self.SB_stepsize}
+
+        self.Widgets['movesteppos'].clicked.connect(lambda : self._moveStepper('positive'))
+        self.Widgets['movestepneg'].clicked.connect(lambda : self._moveStepper('negative'))
 
         GPIO.setmode(GPIO.BCM)
         self.switch0pin = switch0_GPIO
         self.switch1pin = switch1_GPIO
         GPIO.setup(self.switch0pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(self.switch1pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+        self.stepDirpin = stepDir_GPIO
+        self.stepSizepin = stepSize_GPIO
+        self.stepEnablepin = stepEnable_GPIO
+        self.mymotor = RpiMotorLib.A4988Nema(self.stepDirpin, self.stepSizepin, (21,21,21), "DRV8825")
+        GPIO.setup(self.stepEnablepin, GPIO.OUT) # set enable pin as output
+        GPIO.output(self.stepEnablepin, GPIO.LOW)
+        self.steps_in_rotation = 200 # steps per revolution
+
+
 
 
         self._sample_interval = 100
@@ -39,10 +53,9 @@ class stepperCalibration(QtWidgets.QMainWindow):
 
     # ---- MAIN RUNTIME ----
     def runtime_function(self):
-        self.check_switches()
+        self._check_switches()
 
-
-    def check_switches(self):
+    def _check_switches(self):
         switch0_state = GPIO.input(self.switch0pin)
         switch1_state = GPIO.input(self.switch1pin)
 
@@ -55,7 +68,15 @@ class stepperCalibration(QtWidgets.QMainWindow):
             self.Widgets['state1'].setText("1")
         else:
             self.Widgets['state1'].setText("0")
-  
+
+    def _moveStepper(self, direction):
+        stepSize_deg = self.widgets['stepsize'].getValue()
+        numSteps = (stepSize_deg / 360) * self.steps_in_rotation
+        if direction == 'positive':
+            self.mymotor.motor_go(True, "Full", numSteps, 0.005, False, 0.05)
+        elif direction == 'negative':
+            self.mymotor.motor_go(False, "Full", numSteps, 0.005, False, 0.05)
+
     def closeEvent(self, event):
         self._stop_stage_continuous()
         self._storeSettings()
